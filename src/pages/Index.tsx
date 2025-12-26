@@ -94,32 +94,80 @@ const Index = () => {
     }
   };
 
+  const playSound = (type: 'open' | 'spin' | 'win') => {
+    const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+    const oscillator = audioContext.createOscillator();
+    const gainNode = audioContext.createGain();
+    
+    oscillator.connect(gainNode);
+    gainNode.connect(audioContext.destination);
+    
+    if (type === 'open') {
+      oscillator.frequency.setValueAtTime(400, audioContext.currentTime);
+      oscillator.frequency.exponentialRampToValueAtTime(800, audioContext.currentTime + 0.1);
+      gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
+      gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.1);
+      oscillator.start(audioContext.currentTime);
+      oscillator.stop(audioContext.currentTime + 0.1);
+    } else if (type === 'spin') {
+      oscillator.frequency.setValueAtTime(200, audioContext.currentTime);
+      gainNode.gain.setValueAtTime(0.1, audioContext.currentTime);
+      oscillator.start(audioContext.currentTime);
+      oscillator.stop(audioContext.currentTime + 0.05);
+    } else if (type === 'win') {
+      oscillator.frequency.setValueAtTime(523, audioContext.currentTime);
+      oscillator.frequency.setValueAtTime(659, audioContext.currentTime + 0.1);
+      oscillator.frequency.setValueAtTime(784, audioContext.currentTime + 0.2);
+      gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
+      gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.4);
+      oscillator.start(audioContext.currentTime);
+      oscillator.stop(audioContext.currentTime + 0.4);
+    }
+  };
+
   const handleLogin = (user: string) => {
     setUsername(user);
     setIsLoggedIn(true);
     setShowAuthDialog(false);
   };
 
-  const generateRandomPrice = (rarity: string) => {
-    switch (rarity) {
-      case 'mythic': return Math.floor(Math.random() * (5000 - 1000) + 1000);
-      case 'legendary': return Math.floor(Math.random() * (1000 - 300) + 300);
-      case 'epic': return Math.floor(Math.random() * (300 - 100) + 100);
-      case 'rare': return Math.floor(Math.random() * (100 - 30) + 30);
-      default: return Math.floor(Math.random() * (30 - 10) + 10);
+  const generateRandomPrice = () => {
+    const rand = Math.random();
+    if (rand < 0.60) return Math.floor(Math.random() * 100) + 1;
+    if (rand < 0.85) return Math.floor(Math.random() * 900) + 100;
+    if (rand < 0.95) return Math.floor(Math.random() * 4000) + 1000;
+    if (rand < 0.99) return Math.floor(Math.random() * 20000) + 5000;
+    return Math.floor(Math.random() * 75000) + 25000;
+  };
+
+  const selectSkinByWeight = (skinsWithPrices: Skin[]) => {
+    const weights = skinsWithPrices.map(skin => {
+      const priceWeight = 100000 / (skin.price + 100);
+      return Math.max(priceWeight, 0.1);
+    });
+    
+    const totalWeight = weights.reduce((sum, w) => sum + w, 0);
+    let random = Math.random() * totalWeight;
+    
+    for (let i = 0; i < skinsWithPrices.length; i++) {
+      random -= weights[i];
+      if (random <= 0) return skinsWithPrices[i];
     }
+    
+    return skinsWithPrices[skinsWithPrices.length - 1];
   };
 
   const openCase = (caseItem: typeof cases[0]) => {
     if (balance < caseItem.price) return;
 
+    playSound('open');
     setBalance(balance - caseItem.price);
     
     const caseSkinsData = caseItem.skins.map(skinId => {
       const skin = standoffSkins.find(s => s.id === skinId)!;
       return {
         ...skin,
-        price: generateRandomPrice(skin.rarity)
+        price: generateRandomPrice()
       };
     });
 
@@ -129,12 +177,11 @@ const Index = () => {
       allRouletteSkins.push({
         ...randomSkin,
         id: randomSkin.id + i * 1000,
-        price: generateRandomPrice(randomSkin.rarity)
+        price: generateRandomPrice()
       });
     }
 
-    const winnerIndex = Math.floor(Math.random() * caseSkinsData.length);
-    const winner = caseSkinsData[winnerIndex];
+    const winner = selectSkinByWeight(caseSkinsData);
     allRouletteSkins[45] = winner;
 
     setRouletteItems(allRouletteSkins);
@@ -142,8 +189,12 @@ const Index = () => {
     setShowCaseAnimation(true);
     setIsSpinning(true);
 
+    const spinInterval = setInterval(() => playSound('spin'), 100);
+
     setTimeout(() => {
+      clearInterval(spinInterval);
       setIsSpinning(false);
+      playSound('win');
       setInventory([...inventory, winner]);
       setXp(xp + 50);
       if (xp + 50 >= 500) {
