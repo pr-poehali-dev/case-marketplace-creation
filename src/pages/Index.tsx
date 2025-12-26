@@ -30,6 +30,10 @@ const Index = () => {
   const [rouletteItems, setRouletteItems] = useState<Skin[]>([]);
   const [wonSkin, setWonSkin] = useState<Skin | null>(null);
   const [isSpinning, setIsSpinning] = useState(false);
+  const [showPromoDialog, setShowPromoDialog] = useState(false);
+  const [promoCode, setPromoCode] = useState('');
+  const [promoMessage, setPromoMessage] = useState('');
+  const [usedPromoCodes, setUsedPromoCodes] = useState<string[]>([]);
 
   const standoffSkins = [
     { id: 1, name: 'AK-47 | Redline', rarity: 'legendary', image: '🔫' },
@@ -209,6 +213,48 @@ const Index = () => {
     setBalance(balance + skin.price);
   };
 
+  const activatePromoCode = () => {
+    const trimmedCode = promoCode.trim().toUpperCase();
+    
+    if (!trimmedCode) {
+      setPromoMessage('❌ Введите промокод');
+      return;
+    }
+    
+    if (usedPromoCodes.includes(trimmedCode)) {
+      setPromoMessage('❌ Этот промокод уже использован');
+      return;
+    }
+    
+    const promoCodes: { [key: string]: { reward: number; type: 'coins' | 'case' } } = {
+      'FARMSO2': { reward: 500, type: 'coins' },
+      'WELCOME': { reward: 1000, type: 'coins' },
+      'START': { reward: 250, type: 'coins' },
+      'VIP2024': { reward: 2500, type: 'coins' },
+      'LEGENDARY': { reward: 5000, type: 'coins' },
+      'GIFT': { reward: 1500, type: 'coins' },
+      'BONUS': { reward: 750, type: 'coins' },
+      'PROMO': { reward: 300, type: 'coins' },
+    };
+    
+    const promo = promoCodes[trimmedCode];
+    
+    if (!promo) {
+      setPromoMessage('❌ Неверный промокод');
+      return;
+    }
+    
+    setBalance(balance + promo.reward);
+    setUsedPromoCodes([...usedPromoCodes, trimmedCode]);
+    setPromoMessage(`✅ Промокод активирован! +${promo.reward} FarmSo2`);
+    setPromoCode('');
+    
+    setTimeout(() => {
+      setShowPromoDialog(false);
+      setPromoMessage('');
+    }, 2000);
+  };
+
   if (!isLoggedIn) {
     return (
       <Dialog open={showAuthDialog} onOpenChange={setShowAuthDialog}>
@@ -284,6 +330,54 @@ const Index = () => {
 
   return (
     <div className="min-h-screen bg-background text-foreground">
+      <Dialog open={showPromoDialog} onOpenChange={setShowPromoDialog}>
+        <DialogContent className="sm:max-w-md bg-card/95 backdrop-blur border-primary/30">
+          <DialogHeader>
+            <DialogTitle className="text-2xl gradient-cyber bg-clip-text text-transparent flex items-center gap-2">
+              <Icon name="Gift" className="text-primary" />
+              Активировать промокод
+            </DialogTitle>
+            <DialogDescription>
+              Введите промокод, чтобы получить бонусы
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="promo">Промокод</Label>
+              <Input
+                id="promo"
+                placeholder="Введите промокод"
+                value={promoCode}
+                onChange={(e) => setPromoCode(e.target.value.toUpperCase())}
+                onKeyDown={(e) => e.key === 'Enter' && activatePromoCode()}
+                className="uppercase"
+              />
+            </div>
+            {promoMessage && (
+              <div className={`p-3 rounded-lg text-center font-semibold ${
+                promoMessage.includes('✅') 
+                  ? 'bg-green-500/20 text-green-400 border border-green-500/30' 
+                  : 'bg-red-500/20 text-red-400 border border-red-500/30'
+              }`}>
+                {promoMessage}
+              </div>
+            )}
+            <Button
+              className="w-full neon-glow"
+              onClick={activatePromoCode}
+              disabled={!promoCode}
+            >
+              <Icon name="Check" size={16} className="mr-2" />
+              Активировать
+            </Button>
+            <div className="text-xs text-muted-foreground space-y-1">
+              <p>💡 Доступные промокоды:</p>
+              <p>FARMSO2, WELCOME, START, VIP2024</p>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
       <Dialog open={showCaseAnimation} onOpenChange={setShowCaseAnimation}>
         <DialogContent className="sm:max-w-4xl bg-card/95 backdrop-blur border-primary/30">
           <div className="space-y-6">
@@ -350,6 +444,15 @@ const Index = () => {
               </div>
             </div>
             <div className="flex items-center gap-4">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShowPromoDialog(true)}
+                className="gap-2 neon-glow-purple"
+              >
+                <Icon name="Gift" size={16} />
+                Промокод
+              </Button>
               <div className="flex items-center gap-2 px-4 py-2 bg-primary/20 rounded-lg border border-primary neon-glow">
                 <Icon name="Wallet" size={20} className="text-primary" />
                 <span className="font-bold text-lg">{balance.toLocaleString()}</span>
